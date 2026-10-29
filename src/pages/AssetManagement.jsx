@@ -543,6 +543,12 @@ export default function AssetManagement() {
                 Close
               </button>
               <button 
+                onClick={() => { setShowModal(false); navigate("/asset-details", { state: { asset: selected } }); }} 
+                className="px-4 py-2 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors font-medium cursor-pointer"
+              >
+                Full Details Page
+              </button>
+              <button 
                 onClick={() => { setShowModal(false); handleEdit(selected); }} 
                 className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors font-medium cursor-pointer"
               >

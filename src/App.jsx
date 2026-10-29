@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 
 import Dashboard from "./pages/Dashboard";
 import AssetManagement from "./pages/AssetManagement";
@@ -136,6 +136,8 @@ function App() {
           </ProtectedRoute>
         }
       />
+      {/* Fallback route to prevent blank screens */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

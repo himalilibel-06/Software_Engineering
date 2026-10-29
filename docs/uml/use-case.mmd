@@ -1,0 +1,68 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#81D4F0',
+    'primaryTextColor': '#000000',
+    'primaryBorderColor': '#000000',
+    'lineColor': '#000000',
+    'background': '#FFFFFF',
+    'fontSize': '14px',
+    'fontFamily': 'Arial, sans-serif'
+  }
+}}%%
+flowchart LR
+    subgraph Boundary ["BIM Facility Management System (Smart BIM FM Platform)"]
+        direction TB
+        UC1(["UC-001: Register Account"])
+        UC2(["UC-002: Authenticate & Log In (JWT)"])
+        UC3(["UC-003: View Dashboard KPIs & Alerts"])
+        UC4(["UC-004: Manage Asset Inventory (CRUD)"])
+        UC5(["UC-005: Edit Asset Specs & Health"])
+        UC6(["UC-006: Report Incident & Triage Issue"])
+        UC7(["UC-007: Assign Technician & Update Status"])
+        UC8(["UC-008: Schedule Preventative Maintenance"])
+        UC9(["UC-009: Inspect 2D Isometric BIM Viewer"])
+        UC10(["UC-010: Manage User Directory"])
+        UC11(["UC-011: Export Data Reports (CSV)"])
+    end
+
+    FM["Facility Manager / Staff User"]
+    ADMIN["System Administrator"]
+    TECH["Field Technician"]
+
+    FM --- UC1
+    FM --- UC2
+    FM --- UC3
+    FM --- UC4
+    FM --- UC6
+    FM --- UC8
+    FM --- UC9
+    FM --- UC11
+
+    ADMIN --- UC2
+    ADMIN --- UC3
+    ADMIN --- UC10
+
+    TECH --- UC7
+    TECH --- UC8
+    TECH --- UC9
+
+    UC4 -.->|"<<include>>"| UC5
+    UC6 -.->|"<<include>>"| UC7
+    UC3 -.->|"<<include>>"| UC2
+
+    style Boundary fill:#FFFFFF,stroke:#000000,stroke-width:2px,stroke-dasharray: 0
+    style FM fill:#81D4F0,stroke:#000000,stroke-width:2px
+    style ADMIN fill:#81D4F0,stroke:#000000,stroke-width:2px
+    style TECH fill:#81D4F0,stroke:#000000,stroke-width:2px
+    style UC1 fill:#81D4F0,stroke:#000000,stroke-width:2px
+    style UC2 fill:#81D4F0,stroke:#000000,stroke-width:2px
+    style UC3 fill:#81D4F0,stroke:#000000,stroke-width:2px
+    style UC4 fill:#81D4F0,stroke:#000000,stroke-width:2px
+    style UC5 fill:#81D4F0,stroke:#000000,stroke-width:2px
+    style UC6 fill:#81D4F0,stroke:#000000,stroke-width:2px
+    style UC7 fill:#81D4F0,stroke:#000000,stroke-width:2px
+    style UC8 fill:#81D4F0,stroke:#000000,stroke-width:2px
+    style UC9 fill:#81D4F0,stroke:#000000,stroke-width:2px
+    style UC10 fill:#81D4F0,stroke:#000000,stroke-width:2px
+    style UC11 fill:#81D4F0,stroke:#000000,stroke-width:2px

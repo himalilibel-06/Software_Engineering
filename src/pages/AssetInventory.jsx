@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "../lib/api";
 import {
   FiBox, FiActivity, FiTool, FiAlertTriangle, 
   FiSearch, FiFilter, FiDownload, FiPlus, FiRefreshCw,
@@ -67,9 +68,13 @@ export default function AssetInventory() {
   const fetchAssets = async () => {
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5000/api/assets");
-      const data = await res.json();
-      setAssetsList(Array.isArray(data) ? data : []);
+      const res = await apiFetch("/api/assets");
+      if (res.ok) {
+        const data = await res.json();
+        setAssetsList(Array.isArray(data) ? data : []);
+      } else {
+        console.warn("Assets request failed with status:", res.status);
+      }
     } catch (err) {
       console.error("Error communicating with asset database pipeline:", err);
     } finally {
@@ -85,22 +90,36 @@ export default function AssetInventory() {
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("http://localhost:5000/api/assets", {
+      const res = await apiFetch("/api/assets", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
 
       if (res.ok) {
         setIsModalOpen(false);
         setFormData({ assetId: "", name: "", category: "Plumbing", location: "", status: "Operational" });
-        fetchAssets(); // Refresh active rows list
+        await fetchAssets(); // Refresh active rows list
       } else {
-        const errorData = await res.json();
-        alert(errorData.error || "Failed to save asset registration.");
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || errorData.message || "Failed to save asset registration.");
       }
     } catch (err) {
       console.error("Network fault while registering infrastructure asset:", err);
+    }
+  };
+
+  const handleDeleteAsset = async (assetId) => {
+    if (!window.confirm(`Are you sure you want to delete asset ${assetId}?`)) return;
+    try {
+      const res = await apiFetch(`/api/assets/${assetId}`, { method: "DELETE" });
+      if (res.ok) {
+        await fetchAssets();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || errorData.message || "Failed to delete asset.");
+      }
+    } catch (err) {
+      console.error("Error deleting asset:", err);
     }
   };
 
@@ -263,9 +282,8 @@ export default function AssetInventory() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                        <button title="View Details" className="p-1.5 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"><FiEye className="w-3.5 h-3.5" /></button>
-                        <button title="Modify Asset" className="p-1.5 rounded-md text-gray-500 hover:text-amber-600 hover:bg-amber-50 transition-colors"><FiEdit2 className="w-3.5 h-3.5" /></button>
-                        <button title="Decommission Asset" className="p-1.5 rounded-md text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"><FiTrash2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => alert(`Asset ${asset.assetId}: ${asset.name}\nLocation: ${asset.location}\nStatus: ${asset.status}`)} title="View Details" className="p-1.5 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"><FiEye className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => handleDeleteAsset(asset._id || asset.assetId)} title="Decommission Asset" className="p-1.5 rounded-md text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"><FiTrash2 className="w-3.5 h-3.5" /></button>
                       </div>
                     </td>
                   </tr>

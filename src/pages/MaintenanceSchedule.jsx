@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "../lib/api";
 import {
   FiCalendar, FiCheckSquare, FiClock, FiAlertOctagon,
   FiSearch, FiDownload, FiPlus, FiRefreshCw,
@@ -70,18 +71,21 @@ export default function MaintenanceSchedule() {
   const fetchSchedules = async () => {
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5000/api/maintenance");
-      const data = await res.json();
+      const res = await apiFetch("/api/maintenance");
+      if (res.ok) {
+        const data = await res.json();
+        // Auto-calculate if an item has gone overdue before committing to state
+        const processedData = (Array.isArray(data) ? data : []).map(task => {
+          if (task.workStatus !== "Completed" && new Date(task.scheduledDate) < new Date()) {
+            return { ...task, workStatus: "Overdue" };
+          }
+          return task;
+        });
 
-      // Auto-calculate if an item has gone overdue before committing to state
-      const processedData = (Array.isArray(data) ? data : []).map(task => {
-        if (task.workStatus !== "Completed" && new Date(task.scheduledDate) < new Date()) {
-          return { ...task, workStatus: "Overdue" };
-        }
-        return task;
-      });
-
-      setScheduleList(processedData);
+        setScheduleList(processedData);
+      } else {
+        console.warn("Maintenance schedules request failed with status:", res.status);
+      }
     } catch (err) {
       console.error("Error communicating with maintenance API:", err);
     } finally {
@@ -97,9 +101,8 @@ export default function MaintenanceSchedule() {
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch("http://localhost:5000/api/maintenance", {
+      const response = await apiFetch("/api/maintenance", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)
       });
 
@@ -107,9 +110,42 @@ export default function MaintenanceSchedule() {
         await fetchSchedules(); // Refresh schedule list directly
         setFormData(initialFormState);
         setIsModalOpen(false);
+      } else {
+        const err = await response.json().catch(() => ({}));
+        alert(err.message || err.error || "Failed to commit routine run.");
       }
     } catch (err) {
       console.error("Failed to commit to database:", err);
+    }
+  };
+
+  const handleCompleteTask = async (id) => {
+    try {
+      const res = await apiFetch(`/api/maintenance/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ workStatus: "Completed", status: "Completed" })
+      });
+      if (res.ok) {
+        await fetchSchedules();
+      } else {
+        alert("Failed to update status to Completed.");
+      }
+    } catch (err) {
+      console.error("Error marking task complete:", err);
+    }
+  };
+
+  const handleCancelTask = async (id) => {
+    if (!window.confirm("Cancel and delete this maintenance schedule?")) return;
+    try {
+      const res = await apiFetch(`/api/maintenance/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        await fetchSchedules();
+      } else {
+        alert("Failed to delete maintenance task.");
+      }
+    } catch (err) {
+      console.error("Error deleting maintenance schedule:", err);
     }
   };
 
@@ -266,9 +302,9 @@ export default function MaintenanceSchedule() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                        <button title="Inspect Details" className="p-1.5 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"><FiEye className="w-3.5 h-3.5" /></button>
-                        <button title="Mark Completed" className="p-1.5 rounded-md text-gray-500 hover:text-green-600 hover:bg-green-50 transition-colors cursor-pointer"><FiCheck className="w-3.5 h-3.5" /></button>
-                        <button title="Cancel Schedule" className="p-1.5 rounded-md text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"><FiTrash2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => alert(`Task: ${task.taskName}\nAsset: ${task.assetId}\nScheduled: ${new Date(task.scheduledDate).toLocaleDateString()}\nTeam: ${task.assignedTeam}\nStatus: ${task.workStatus}`)} title="Inspect Details" className="p-1.5 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"><FiEye className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => handleCompleteTask(task._id || task.assetId)} title="Mark Completed" className="p-1.5 rounded-md text-gray-500 hover:text-green-600 hover:bg-green-50 transition-colors cursor-pointer"><FiCheck className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => handleCancelTask(task._id || task.assetId)} title="Cancel Schedule" className="p-1.5 rounded-md text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"><FiTrash2 className="w-3.5 h-3.5" /></button>
                       </div>
                     </td>
                   </tr>

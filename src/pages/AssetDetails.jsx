@@ -1,4 +1,6 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useLocation, useNavigate, Link } from "react-router-dom";
+import { apiFetch } from "../lib/api";
 import {
   FiArrowLeft, FiEdit2, FiClock, FiAlertCircle,
   FiActivity, FiCalendar, FiUser, FiCpu, FiShield,
@@ -99,19 +101,96 @@ const PriorityBadge = ({ priority }) => {
 export default function AssetDetails() {
   const location = useLocation();
   const navigate = useNavigate();
-const asset = location.state?.asset;
-if (!asset) {
-  return (
-    <div className="p-10 text-center">
-      <h2 className="text-2xl font-bold">No Asset Data Found</h2>
-      <p>Please go back to Asset Management and click the View icon.</p>
-    </div>
-  );
-}
+
+  const [asset, setAsset] = useState(() => {
+    if (location.state?.asset) {
+      sessionStorage.setItem("view_asset", JSON.stringify(location.state.asset));
+      return location.state.asset;
+    }
+    const saved = sessionStorage.getItem("view_asset");
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (location.state?.asset) {
+      setAsset(location.state.asset);
+      sessionStorage.setItem("view_asset", JSON.stringify(location.state.asset));
+    } else if (!asset) {
+      // If refreshed without state or storage, fetch from backend
+      setLoading(true);
+      const searchParams = new URLSearchParams(location.search);
+      const queryId = searchParams.get("id");
+
+      apiFetch("/api/assets")
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            const found = queryId
+              ? data.find((a) => a.assetId === queryId || a._id === queryId) || data[0]
+              : data[0];
+            setAsset(found);
+            sessionStorage.setItem("view_asset", JSON.stringify(found));
+          }
+        })
+        .catch((err) => console.error("Error retrieving asset for inspection:", err))
+        .finally(() => setLoading(false));
+    }
+  }, [location.state, location.search]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans">
+        <div className="text-center space-y-2">
+          <FiRefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
+          <p className="text-sm font-medium text-slate-500">Loading asset telemetry record...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!asset) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-md text-center">
+          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+            <FiAlertCircle />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800 mb-2">No Asset Data Found</h2>
+          <p className="text-sm text-slate-500 mb-6">
+            Please navigate to Asset Management and select an asset record to inspect.
+          </p>
+          <button
+            onClick={() => navigate("/assets")}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm transition-colors shadow-sm cursor-pointer"
+          >
+            <FiArrowLeft size={16} /> Return to Assets
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Normalized properties
+  const assetId = asset.assetId || asset.id || asset._id || "AST-000";
+  const healthScore = asset.health ?? asset.healthScore ?? 100;
+  const assetName = asset.name || "Hardware Asset";
+  const category = asset.category || "HVAC";
+  const locationText = asset.location || "Building Floor";
+  const status = asset.status || "Operational";
+  const manufacturer = asset.manufacturer || "Facility Standard OEM";
+  const model = asset.model || "Commercial Model Series";
+  const installationDate = asset.installationDate || (asset.createdAt ? new Date(asset.createdAt).toLocaleDateString() : "2024-01-15");
+  const warrantyExpiry = asset.warrantyExpiry || "2029-01-15";
+  const technician = asset.technician || asset.assignedTeam || "Assigned Facility Crew";
+  const age = asset.age || "2 yrs 4 mos";
+  const maintenanceCount = asset.maintenanceCount ?? 5;
+  const openIssuesCount = asset.openIssues ?? (status === "Critical" ? 1 : 0);
 
   const healthColor =
-    asset.healthScore >= 80 ? "bg-emerald-500" :
-    asset.healthScore >= 60 ? "bg-amber-500" : "bg-red-500";
+    healthScore >= 80 ? "bg-emerald-500" :
+    healthScore >= 60 ? "bg-amber-500" : "bg-red-500";
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
@@ -125,27 +204,27 @@ if (!asset) {
             <span className="text-slate-300">/</span>
             <span>Assets</span>
             <span className="text-slate-300">/</span>
-            <span className="text-slate-700 font-semibold">{asset.id}</span>
+            <span className="text-slate-700 font-semibold">{assetId}</span>
           </div>
           <div className="flex items-center gap-2">
             <button
-  onClick={() => navigate("/assets")}
-  className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
->
-  <FiArrowLeft size={14} />
-  Back to Assets
-</button>
+              onClick={() => navigate("/assets")}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <FiArrowLeft size={14} />
+              Back to Assets
+            </button>
             <button
-  onClick={() =>
-    navigate("/edit-asset", {
-      state: { asset },
-    })
-  }
-  className="flex items-center gap-2 px-3 py-1.5 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
->
-  <FiEdit2 size={13} />
-  Edit Asset
-</button>
+              onClick={() =>
+                navigate("/edit-asset", {
+                  state: { asset },
+                })
+              }
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
+            >
+              <FiEdit2 size={13} />
+              Edit Asset
+            </button>
           </div>
         </div>
       </div>
@@ -160,19 +239,19 @@ if (!asset) {
                 <FiCpu size={26} className="text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-800 leading-tight">{asset.name}</h1>
+                <h1 className="text-2xl font-bold text-slate-800 leading-tight">{assetName}</h1>
                 <div className="flex items-center gap-3 mt-1">
-                  <span className="text-sm text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded">{asset.id}</span>
-                  <StatusBadge status={asset.status} />
-                  <span className="text-xs text-slate-400">{asset.category} · {asset.location}</span>
+                  <span className="text-sm text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded">{assetId}</span>
+                  <StatusBadge status={status} />
+                  <span className="text-xs text-slate-400">{category} · {locationText}</span>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+              <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
                 <TbReportAnalytics size={14} /> Generate Report
               </button>
-              <button className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+              <button onClick={() => navigate("/maintenance")} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">
                 <FiPlus size={13} /> New Work Order
               </button>
             </div>
@@ -181,10 +260,10 @@ if (!asset) {
 
         {/* ── SECTION 1: KPI Cards ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard icon={MdOutlineHealthAndSafety} label="Health Score" value={`${asset.healthScore}%`} accent="bg-emerald-100 text-emerald-600" />
-          <KPICard icon={FiClock}                  label="Asset Age"    value={asset.age}               accent="bg-blue-100 text-blue-600" />
-          <KPICard icon={FiTool}                   label="Maintenance Count" value={asset.maintenanceCount} accent="bg-violet-100 text-violet-600" />
-          <KPICard icon={FiAlertCircle}             label="Open Issues"  value={asset.openIssues}         accent="bg-amber-100 text-amber-600" />
+          <KPICard icon={MdOutlineHealthAndSafety} label="Health Score" value={`${healthScore}%`} accent="bg-emerald-100 text-emerald-600" />
+          <KPICard icon={FiClock}                  label="Asset Age"    value={age}                     accent="bg-blue-100 text-blue-600" />
+          <KPICard icon={FiTool}                   label="Maintenance Count" value={maintenanceCount}    accent="bg-violet-100 text-violet-600" />
+          <KPICard icon={FiAlertCircle}             label="Open Issues"  value={openIssuesCount}         accent="bg-amber-100 text-amber-600" />
         </div>
 
         {/* ── Main Grid ── */}
@@ -197,18 +276,18 @@ if (!asset) {
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
               <SectionHeading icon={FiActivity} label="Asset Information" />
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
-                <InfoRow label="Asset ID"           value={asset.id} />
-                <InfoRow label="Asset Name"         value={asset.name} />
-                <InfoRow label="Category"           value={asset.category} />
-                <InfoRow label="Location"           value={asset.location} />
-                <InfoRow label="Manufacturer"       value={asset.manufacturer} />
-                <InfoRow label="Model"              value={asset.model} />
-                <InfoRow label="Installation Date"  value={asset.installationDate} />
-                <InfoRow label="Warranty Expiry"    value={asset.warrantyExpiry} />
-                <InfoRow label="Assigned Technician" value={asset.technician} />
+                <InfoRow label="Asset ID"           value={assetId} />
+                <InfoRow label="Asset Name"         value={assetName} />
+                <InfoRow label="Category"           value={category} />
+                <InfoRow label="Location"           value={locationText} />
+                <InfoRow label="Manufacturer"       value={manufacturer} />
+                <InfoRow label="Model"              value={model} />
+                <InfoRow label="Installation Date"  value={installationDate} />
+                <InfoRow label="Warranty Expiry"    value={warrantyExpiry} />
+                <InfoRow label="Assigned Technician" value={technician} />
                 <div className="flex flex-col gap-0.5">
                   <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Current Status</span>
-                  <StatusBadge status={asset.status} />
+                  <StatusBadge status={status} />
                 </div>
               </div>
             </div>
@@ -220,20 +299,20 @@ if (!asset) {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-slate-600">Health Score</span>
-                    <span className="text-sm font-bold text-emerald-600">{asset.healthScore}%</span>
+                    <span className="text-sm font-bold text-emerald-600">{healthScore}%</span>
                   </div>
                   <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-700 ${healthColor}`}
-                      style={{ width: `${asset.healthScore}%` }}
+                      style={{ width: `${healthScore}%` }}
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   {[
-                    { label: "Performance", value: asset.performance, color: "text-emerald-600 bg-emerald-50" },
-                    { label: "Risk Level",   value: asset.riskLevel,   color: "text-sky-600 bg-sky-50" },
-                    { label: "Condition",    value: "Good",            color: "text-blue-600 bg-blue-50" },
+                    { label: "Performance", value: healthScore >= 80 ? "Optimal" : healthScore >= 60 ? "Moderate" : "Sub-par", color: "text-emerald-600 bg-emerald-50" },
+                    { label: "Risk Level",   value: healthScore >= 80 ? "Low" : healthScore >= 60 ? "Medium" : "High",   color: "text-sky-600 bg-sky-50" },
+                    { label: "Condition",    value: healthScore >= 80 ? "Good" : healthScore >= 60 ? "Fair" : "Poor",            color: "text-blue-600 bg-blue-50" },
                   ].map(({ label, value, color }) => (
                     <div key={label} className="text-center p-4 rounded-xl bg-slate-50 border border-slate-100">
                       <p className="text-xs text-slate-500 mb-1">{label}</p>

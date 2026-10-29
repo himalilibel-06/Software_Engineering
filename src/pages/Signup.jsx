@@ -165,7 +165,17 @@ export default function Signup() {
   // ── Signup handler ────────────────────────────────────────────────────────
   const handleSignup = async (e) => {
     e.preventDefault();
-    setIsLoading(true); // Ensure you have this state
+    setServerError("");
+
+    // Run client-side validation
+    const errors = validate();
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+    setFieldErrors({});
+    setIsLoading(true);
+
     try {
       const { fullName, email, password, role } = formData;
       const response = await apiFetch("/api/auth/signup", {
@@ -182,11 +192,13 @@ export default function Signup() {
       // Add a small delay so the user sees the toast before navigating
       setTimeout(() => {
         navigate("/"); // Sends them to Login
-      }, 2000);
+      }, 1500);
       
     } catch (error) {
       console.error("Signup error:", error);
-      toast.error(error.response?.data?.message || "Signup failed");
+      const msg = error.response?.data?.message || "Signup failed";
+      setServerError(msg);
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }

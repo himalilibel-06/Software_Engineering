@@ -1,0 +1,42 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#81D4F0',
+    'primaryTextColor': '#000000',
+    'primaryBorderColor': '#000000',
+    'lineColor': '#000000',
+    'background': '#FFFFFF',
+    'fontSize': '14px',
+    'fontFamily': 'Arial, sans-serif'
+  }
+}}%%
+stateDiagram-v2
+    [*] --> Open: Report Issue [Valid form] / POST /api/issues
+    
+    state Open {
+        [*] --> Unassigned
+        Unassigned: entry / Set status = 'Open'
+        Unassigned: do / Await triage & team review
+    }
+    
+    Open --> InProgress: Assign Technician [Technician selected] / PUT /api/issues/:id/assign
+    
+    state InProgress {
+        [*] --> UnderRepair
+        UnderRepair: entry / Set status = 'In Progress'
+        UnderRepair: entry / Set assignedTo = technicianName
+        UnderRepair: do / Physical inspection & maintenance
+    }
+    
+    InProgress --> InProgress: Reassign Technician [New technician selected] / PUT /api/issues/:id/assign
+    InProgress --> Resolved: Complete Work [Defect repaired & verified] / PUT /api/issues/:id/status
+    
+    state Resolved {
+        [*] --> Closed
+        Closed: entry / Set status = 'Resolved'
+        Closed: entry / Record resolvedAt timestamp
+        Closed: do / Update asset health & KPI metrics
+    }
+    
+    Resolved --> Open: Reopen Ticket [Defect recurs] / PUT /api/issues/:id/status
+    Resolved --> [*]: Archive / Delete Ticket [Retention met] / DELETE /api/issues/:id

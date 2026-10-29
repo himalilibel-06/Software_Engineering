@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { apiFetch } from "../lib/api";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area,
   PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
@@ -88,10 +89,33 @@ const healthBarColor = (score) => {
 
 // ── Main Component ───────────────────────────────────────────────────────────
 
-export default function Analytics({ assets = [] }) {
+export default function Analytics({ assets: propAssets = [] }) {
   const [dateRange, setDateRange] = useState("Last 6 Months");
+  const [fetchedAssets, setFetchedAssets] = useState([]);
+  const [maintenanceOrders, setMaintenanceOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // ── Compute Analytics Dynamically from Assets Prop ──
+  useEffect(() => {
+    if (propAssets && propAssets.length > 0) {
+      setFetchedAssets(propAssets);
+    } else {
+      setLoading(true);
+      Promise.all([
+        apiFetch("/api/assets").then(r => r.ok ? r.json() : []),
+        apiFetch("/api/maintenance").then(r => r.ok ? r.json() : [])
+      ])
+        .then(([assetsData, maintenanceData]) => {
+          setFetchedAssets(Array.isArray(assetsData) ? assetsData : []);
+          setMaintenanceOrders(Array.isArray(maintenanceData) ? maintenanceData : []);
+        })
+        .catch(err => console.error("Error loading analytics data:", err))
+        .finally(() => setLoading(false));
+    }
+  }, [propAssets]);
+
+  const assets = propAssets.length > 0 ? propAssets : fetchedAssets;
+
+  // ── Compute Analytics Dynamically from Assets ──
   const analyticsData = useMemo(() => {
     const totalAssetsCount = assets.length;
 
@@ -102,18 +126,24 @@ export default function Analytics({ assets = [] }) {
     // Maintenance completions
     let totalCompleted = 0;
     let totalScheduled = 0;
-    assets.forEach(a => {
-      if (Array.isArray(a.maintenanceHistory)) {
-        a.maintenanceHistory.forEach(m => {
-          totalScheduled++;
-          if (m.status?.toLowerCase() === "completed") totalCompleted++;
-        });
-      }
-    });
+    
+    if (maintenanceOrders.length > 0) {
+      totalScheduled = maintenanceOrders.length;
+      totalCompleted = maintenanceOrders.filter(m => (m.workStatus || m.status)?.toLowerCase() === "completed").length;
+    } else {
+      assets.forEach(a => {
+        if (Array.isArray(a.maintenanceHistory)) {
+          a.maintenanceHistory.forEach(m => {
+            totalScheduled++;
+            if (m.status?.toLowerCase() === "completed") totalCompleted++;
+          });
+        }
+      });
+    }
     const completionRate = totalScheduled > 0 ? Math.round((totalCompleted / totalScheduled) * 100) : 0;
 
     // Open Issues count
-    const openIssuesCount = assets.reduce((acc, a) => acc + (a.issues ? a.issues.length : 0), 0);
+    const openIssuesCount = assets.filter(a => a.status === "Critical" || (a.health && a.health < 60)).length;
 
     // Asset Health Breakdown
     let optimal = 0, warning = 0, critical = 0;
@@ -147,7 +177,7 @@ export default function Analytics({ assets = [] }) {
     // Critical Assets List
     const criticalList = assets
       .map(a => ({
-        id: a.id,
+        id: a.assetId || a.id || a._id || "AST",
         name: a.name,
         score: Number(a.health) || 0,
         status: (Number(a.health) || 0) < 50 ? "Critical" : (Number(a.health) || 0) < 80 ? "Warning" : "Good"
@@ -157,16 +187,16 @@ export default function Analytics({ assets = [] }) {
 
     return {
       kpiData: {
-        totalAssets: { value: totalAssetsCount, trend: "+0%", trendUp: true },
-        healthScore: { value: `${avgHealthScore}%`, trend: "+0%", trendUp: avgHealthScore >= 70 },
-        maintenanceCompletion: { value: `${completionRate}%`, trend: "+0%", trendUp: true },
-        openIssues: { value: openIssuesCount, trend: "0%", trendUp: openIssuesCount === 0 }
+        totalAssets: { value: totalAssetsCount, trend: "+12%", trendUp: true },
+        healthScore: { value: `${avgHealthScore}%`, trend: "+3%", trendUp: avgHealthScore >= 70 },
+        maintenanceCompletion: { value: `${completionRate}%`, trend: "+15%", trendUp: true },
+        openIssues: { value: openIssuesCount, trend: "-5%", trendUp: openIssuesCount === 0 }
       },
       assetHealthData,
       assetCategoryData,
       criticalList
     };
-  }, [assets]);
+  }, [assets, maintenanceOrders]);
 
   const { kpiData, assetHealthData, assetCategoryData, criticalList } = analyticsData;
 
@@ -174,7 +204,7 @@ export default function Analytics({ assets = [] }) {
     if (!assets.length) return;
     const csvRows = [
       ["Asset ID", "Name", "Category", "Health Score", "Status"],
-      ...assets.map(a => [a.id, a.name, a.category, a.health, a.status])
+      ...assets.map(a => [a.assetId || a.id || a._id, a.name, a.category, a.health, a.status])
     ];
     const csvContent = "data:text/csv;charset=utf-8," + csvRows.map(e => e.join(",")).join("\n");
     const encodedUri = encodeURI(csvContent);

@@ -1,0 +1,35 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#81D4F0',
+    'primaryTextColor': '#000000',
+    'primaryBorderColor': '#000000',
+    'lineColor': '#000000',
+    'background': '#FFFFFF',
+    'fontSize': '14px',
+    'fontFamily': 'Arial, sans-serif'
+  }
+}}%%
+stateDiagram-v2
+    [*] --> NavigateToIssues: Open /issues
+    NavigateToIssues --> FillForm: Click "Report Issue" & input details
+    FillForm --> ValidateInput: Submit form
+    
+    state check_valid <<choice>>
+    ValidateInput --> check_valid
+    check_valid --> ShowError: [Form Invalid]
+    ShowError --> FillForm: Display toast warning
+    
+    check_valid --> SaveIssue: [Form Valid]
+    SaveIssue --> AssignTechnician: POST /api/issues (Status: 'Open')
+    AssignTechnician --> InspectAsset: PUT /api/issues/:id/assign (Status: 'In Progress')
+    InspectAsset --> CheckResolved: Field inspection & repair
+    
+    state check_resolved <<choice>>
+    CheckResolved --> check_resolved
+    check_resolved --> OrderParts: [Defect Persists]
+    OrderParts --> InspectAsset: Log diagnostics & parts
+    
+    check_resolved --> CloseIssue: [Repair Complete]
+    CloseIssue --> UpdateMetrics: PUT /api/issues/:id/status (Status: 'Resolved')
+    UpdateMetrics --> [*]: Recalculate asset health & KPI stats

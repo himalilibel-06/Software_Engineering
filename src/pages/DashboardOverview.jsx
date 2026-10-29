@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "../lib/api";
 import {
   FiActivity, FiBox, FiAlertTriangle, FiCalendar, 
   FiTrendingUp, FiCheckCircle, FiClock, FiGrid, FiRefreshCw
@@ -51,9 +52,18 @@ export default function DashboardOverview() {
   const fetchDashboardStats = async () => {
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5000/api/dashboard/stats");
-      const data = await res.json();
-      setStats(data);
+      const res = await apiFetch("/api/dashboard/stats");
+      if (res.ok) {
+        const data = await res.json();
+        setStats({
+          totalAssets: data.totalAssets ?? 0,
+          activeIssuesCount: data.activeIssuesCount ?? data.activeIssues ?? 0,
+          maintenanceToday: data.maintenanceToday ?? 0,
+          breakdown: data.breakdown || {}
+        });
+      } else {
+        console.warn("Could not fetch dashboard stats, status:", res.status);
+      }
     } catch (err) {
       console.error("Error loading centralized dashboard metrics:", err);
     } finally {
@@ -77,7 +87,8 @@ export default function DashboardOverview() {
   }
 
   // Find the highest breakdown count to normalize the progress bar lengths
-  const counts = Object.values(stats.breakdown);
+  const breakdown = stats.breakdown || {};
+  const counts = Object.values(breakdown);
   const maxIssues = counts.length > 0 ? Math.max(...counts) : 0;
 
   return (

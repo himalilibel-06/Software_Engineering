@@ -1,0 +1,76 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#81D4F0',
+    'primaryTextColor': '#000000',
+    'primaryBorderColor': '#000000',
+    'lineColor': '#000000',
+    'actorBkg': '#81D4F0',
+    'actorBorder': '#000000',
+    'actorTextColor': '#000000',
+    'actorLineColor': '#000000',
+    'signalColor': '#000000',
+    'signalTextColor': '#000000',
+    'labelBoxBkgColor': '#81D4F0',
+    'labelBoxBorderColor': '#000000',
+    'labelTextColor': '#000000',
+    'activationBorderColor': '#000000',
+    'activationBkgColor': '#81D4F0',
+    'background': '#FFFFFF',
+    'fontSize': '13px',
+    'fontFamily': 'Arial, sans-serif'
+  }
+}}%%
+sequenceDiagram
+    autonumber
+    actor FM as Facility Manager
+    participant UI as LoginUI (Login.jsx)
+    participant API as APIService (api.js)
+    participant Router as AuthRouter (routes/auth.js)
+    participant Model as User Model (models/User.js)
+    participant Auth as Bcrypt / JWT (jwtSecret.js)
+    participant Mid as AuthMiddleware (auth.js)
+    participant AssetM as Asset Model (models/Asset.js)
+
+    FM->>UI: Enter email, password & submit form
+    activate UI
+    UI->>UI: Validate non-empty inputs
+    UI->>API: post('/auth/Login', { email, password })
+    activate API
+    API->>Router: HTTP POST /api/auth/Login
+    activate Router
+    Router->>Model: User.findOne({ email })
+    activate Model
+    Model-->>Router: Return user document (with password hash)
+    deactivate Model
+    Router->>Auth: bcrypt.compare(password, user.password)
+    activate Auth
+    Auth-->>Router: Password matches (true)
+    deactivate Auth
+    Router->>Auth: jwt.sign({ id, email, role }, JWT_SECRET, 24h)
+    activate Auth
+    Auth-->>Router: Signed JWT token string
+    deactivate Auth
+    Router-->>API: 200 OK { token, user: { id, fullName, role } }
+    deactivate Router
+    API-->>UI: Return auth response payload
+    deactivate API
+    UI->>UI: localStorage.setItem('token', token)
+    UI->>FM: Redirect to /dashboard
+    deactivate UI
+
+    FM->>API: Load Dashboard (GET /api/assets)
+    activate API
+    API->>Mid: HTTP GET /api/assets (Header: Authorization: Bearer token)
+    activate Mid
+    Mid->>Auth: jwt.verify(token, JWT_SECRET)
+    activate Auth
+    Auth-->>Mid: Token verified (req.user = decoded)
+    deactivate Auth
+    Mid->>AssetM: Asset.find({ userId: req.user.id })
+    activate AssetM
+    AssetM-->>API: 200 OK [ user-scoped asset records ]
+    deactivate AssetM
+    deactivate Mid
+    API-->>FM: Render KPI overview, health scores & charts
+    deactivate API

@@ -1,0 +1,98 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#81D4F0',
+    'primaryTextColor': '#000000',
+    'primaryBorderColor': '#000000',
+    'lineColor': '#000000',
+    'background': '#FFFFFF',
+    'fontSize': '14px',
+    'fontFamily': 'Arial, sans-serif'
+  }
+}}%%
+classDiagram
+    direction TB
+
+    class User {
+        +ObjectId _id
+        +String fullName
+        +String email
+        -String password
+        +String role
+        +String department
+        +String profileImage
+        +String phone
+        +String employeeId
+        +Date createdAt
+        +comparePassword(candidatePassword) Boolean
+    }
+
+    class Asset {
+        +ObjectId _id
+        +String assetId
+        +String name
+        +String category
+        +String status
+        +String location
+        +String installationDate
+        +String manufacturer
+        +Number health
+        +String lastMaintenance
+        +ObjectId userId
+        +Date createdAt
+    }
+
+    class Issue {
+        +ObjectId _id
+        +ObjectId userId
+        +String assetId
+        +String title
+        +String category
+        +String priority
+        +String reportedBy
+        +String assignedTo
+        +String status
+        +Date createdAt
+        +Date updatedAt
+    }
+
+    class Maintenance {
+        +ObjectId _id
+        +ObjectId userId
+        +String assetId
+        +String taskName
+        +String category
+        +String priority
+        +String frequency
+        +Date scheduledDate
+        +String assignedTeam
+        +String workStatus
+        +Date createdAt
+    }
+
+    class Technician {
+        +ObjectId _id
+        +String name
+        +String role
+    }
+
+    class BIMNode {
+        +String id
+        +String name
+        +String category
+        +String level
+        +Number x
+        +Number y
+        +Number z
+        +String status
+        +Number temperature
+        +Number pressure
+    }
+
+    User "1" --> "*" Asset : manages
+    User "1" --> "*" Issue : reports
+    User "1" --> "*" Maintenance : schedules
+    Asset "1" --> "*" Issue : pertains to
+    Asset "1" --> "*" Maintenance : services
+    Technician "1" --> "*" Issue : assigned to
+    Asset "1" ..> "0..1" BIMNode : spatial telemetry

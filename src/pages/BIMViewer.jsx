@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
+import { apiFetch } from "../lib/api";
 import {
   FiSearch, FiZoomIn, FiZoomOut, FiRotateCw, FiMaximize2,
   FiDownload, FiUpload, FiLayers, FiAlertTriangle, FiCheckCircle,
@@ -91,13 +92,56 @@ export default function BIMViewer({
   // Viewer Canvas State
   const [zoom, setZoom] = useState(100);
   const [rotation, setRotation] = useState(0);
-  const [loadedFileName, setLoadedFileName] = useState(modelName);
+  const [loadedFileName, setLoadedFileName] = useState(modelName || "HQ_Tower_MEP_Model.rvt");
 
   // Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newAsset, setNewAsset] = useState({ id: "", name: "", category: categories[0]?.id || "", status: "operational", health: 100, floor: "", tech: "" });
 
   const fileInputRef = useRef(null);
+
+  // Fetch telemetry from backend on mount if initialAssets is empty
+  useEffect(() => {
+    if (initialAssets.length === 0) {
+      Promise.all([
+        apiFetch("/api/bim").then(r => r.ok ? r.json() : null),
+        apiFetch("/api/assets").then(r => r.ok ? r.json() : [])
+      ])
+        .then(([bimData, userAssets]) => {
+          let merged = [];
+          if (bimData?.assets && Array.isArray(bimData.assets)) {
+            merged = [...bimData.assets];
+          }
+          if (Array.isArray(userAssets) && userAssets.length > 0) {
+            const mappedUserAssets = userAssets.map(ua => ({
+              id: ua.assetId || ua.id || ua._id,
+              name: ua.name,
+              category: (ua.category || "mechanical").toLowerCase(),
+              status: (ua.status || "operational").toLowerCase(),
+              health: ua.health ?? 100,
+              floor: ua.location || "Floor 1",
+              tech: ua.technician || "Facility Staff",
+              installed: ua.installationDate || "2024-05-10",
+              maintenanceHistory: bimData?.maintenanceHistory || [],
+              issues: bimData?.openIssues || [],
+              documents: bimData?.documents || []
+            }));
+            // Avoid duplicate IDs
+            const existingIds = new Set(merged.map(m => m.id));
+            mappedUserAssets.forEach(ua => {
+              if (!existingIds.has(ua.id)) {
+                merged.push(ua);
+              }
+            });
+          }
+          if (merged.length > 0) {
+            setAssets(merged);
+            setSelectedAssetId(prev => prev || merged[0].id);
+          }
+        })
+        .catch(err => console.error("Error loading BIM spatial assets:", err));
+    }
+  }, [initialAssets]);
 
   // Derived Values - Completely Dynamic
   const selectedAsset = assets.find(a => a.id === selectedAssetId) || null;
